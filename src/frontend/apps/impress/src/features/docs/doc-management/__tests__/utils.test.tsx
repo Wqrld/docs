@@ -8,6 +8,7 @@ import {
   getDocLinkReach,
   getDocLinkRole,
   getEmojiAndTitle,
+  startsWithTitle,
 } from '../utils';
 
 vi.mock('yjs', () => {
@@ -196,6 +197,40 @@ describe('doc-management utils', () => {
 
       expect(result.emoji).toBe('🚀');
       expect(result.titleWithoutEmoji).toBe('📚 Project Documentation');
+    });
+  });
+
+  describe('startsWithTitle', () => {
+    const heading = (text: string) => ({
+      type: 'heading',
+      content: [{ type: 'text', text, styles: {} }],
+    });
+
+    it('matches a first heading with the title, emoji, case and spacing aside', () => {
+      expect(startsWithTitle([heading('Roadmap')], 'Roadmap')).toBe(true);
+      expect(startsWithTitle([heading(' q1  ROADMAP ')], '🚀 Q1 Roadmap')).toBe(
+        true,
+      );
+    });
+
+    it('does not match another heading, a paragraph or an empty document', () => {
+      expect(startsWithTitle([heading('Introduction')], 'Roadmap')).toBe(false);
+      expect(
+        startsWithTitle(
+          [{ ...heading('Roadmap'), type: 'paragraph' }],
+          'Roadmap',
+        ),
+      ).toBe(false);
+      expect(startsWithTitle([], 'Roadmap')).toBe(false);
+    });
+
+    it('only looks at the first block', () => {
+      expect(
+        startsWithTitle(
+          [{ ...heading('Intro'), type: 'paragraph' }, heading('Roadmap')],
+          'Roadmap',
+        ),
+      ).toBe(false);
     });
   });
 });

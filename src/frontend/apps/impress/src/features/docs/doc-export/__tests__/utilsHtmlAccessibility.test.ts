@@ -17,7 +17,7 @@ describe('improveHtmlAccessibility', () => {
         <div data-content-type="heading" data-level="3"><span>Title</span></div>
       `);
 
-      improveHtmlAccessibility(doc, 'Doc');
+      improveHtmlAccessibility(doc);
 
       const h3 = doc.querySelector('h3');
       expect(h3).not.toBeNull();
@@ -31,7 +31,7 @@ describe('improveHtmlAccessibility', () => {
         </div>
       `);
 
-      improveHtmlAccessibility(doc, 'Doc');
+      improveHtmlAccessibility(doc);
 
       const h2 = doc.querySelectorAll('h2');
       expect(h2).toHaveLength(1);
@@ -46,21 +46,18 @@ describe('improveHtmlAccessibility', () => {
         </div>
       `);
 
-      improveHtmlAccessibility(doc, 'Doc');
+      improveHtmlAccessibility(doc);
 
       expect(doc.querySelector('h3')).not.toBeNull();
       expect(doc.querySelector('h2')).toBeNull();
     });
 
-    it('inserts an h1 with the document title when none exists', () => {
+    it('does not insert an h1 when none exists', () => {
       const doc = parse(`<p>Content</p>`);
 
-      improveHtmlAccessibility(doc, 'My Doc');
+      improveHtmlAccessibility(doc);
 
-      const h1 = doc.querySelector('h1');
-      expect(h1).not.toBeNull();
-      expect(h1!.id).toBe('doc-title');
-      expect(h1!.textContent).toBe('My Doc');
+      expect(doc.querySelector('h1')).toBeNull();
     });
 
     it('does not insert h1 when the document already has one', () => {
@@ -68,7 +65,7 @@ describe('improveHtmlAccessibility', () => {
         <div data-content-type="heading" data-level="1"><span>Existing</span></div>
       `);
 
-      improveHtmlAccessibility(doc, 'Ignored');
+      improveHtmlAccessibility(doc);
 
       expect(doc.querySelectorAll('h1')).toHaveLength(1);
     });
@@ -89,7 +86,7 @@ describe('improveHtmlAccessibility', () => {
         </div>
       `);
 
-      improveHtmlAccessibility(doc, 'Doc');
+      improveHtmlAccessibility(doc);
 
       const items = doc.querySelectorAll('ul > li');
       expect(items).toHaveLength(2);
@@ -109,7 +106,7 @@ describe('improveHtmlAccessibility', () => {
         </div>
       `);
 
-      improveHtmlAccessibility(doc, 'Doc');
+      improveHtmlAccessibility(doc);
 
       expect(doc.querySelectorAll('ol > li')).toHaveLength(2);
     });
@@ -132,7 +129,7 @@ describe('improveHtmlAccessibility', () => {
         </div>
       `);
 
-      improveHtmlAccessibility(doc, 'Doc');
+      improveHtmlAccessibility(doc);
 
       const uls = doc.querySelectorAll('ul');
       expect(uls).toHaveLength(2);
@@ -161,7 +158,7 @@ describe('improveHtmlAccessibility', () => {
         </div>
       `);
 
-      improveHtmlAccessibility(doc, 'Doc');
+      improveHtmlAccessibility(doc);
 
       expect(doc.querySelectorAll('ul')).toHaveLength(1);
       expect(doc.querySelectorAll('ul > li')).toHaveLength(3);
@@ -175,7 +172,7 @@ describe('improveHtmlAccessibility', () => {
       <div data-content-type="quote"><span>Wise words</span></div>
     `);
 
-    improveHtmlAccessibility(doc, 'Doc');
+    improveHtmlAccessibility(doc);
 
     const bq = doc.querySelector('blockquote');
     expect(bq).not.toBeNull();
@@ -189,7 +186,7 @@ describe('improveHtmlAccessibility', () => {
       <div data-content-type="callout"><span>Note</span></div>
     `);
 
-    improveHtmlAccessibility(doc, 'Doc');
+    improveHtmlAccessibility(doc);
 
     const aside = doc.querySelector('aside');
     expect(aside).not.toBeNull();
@@ -208,7 +205,7 @@ describe('improveHtmlAccessibility', () => {
       </div>
     `);
 
-    improveHtmlAccessibility(doc, 'Doc');
+    improveHtmlAccessibility(doc);
 
     const ul = doc.querySelector('ul.checklist');
     expect(ul).not.toBeNull();
@@ -225,7 +222,7 @@ describe('improveHtmlAccessibility', () => {
       <div data-content-type="codeBlock" class="hl-theme" data-language="js"><span>const x = 1;</span></div>
     `);
 
-    improveHtmlAccessibility(doc, 'Doc');
+    improveHtmlAccessibility(doc);
 
     const pre = doc.querySelector('pre');
     expect(pre).not.toBeNull();
@@ -239,7 +236,7 @@ describe('improveHtmlAccessibility', () => {
   it('adds empty alt to images without one', () => {
     const doc = parse(`<img src="photo.png" />`);
 
-    improveHtmlAccessibility(doc, 'Doc');
+    improveHtmlAccessibility(doc);
 
     expect(doc.querySelector('img')!.getAttribute('alt')).toBe('');
   });
@@ -247,7 +244,7 @@ describe('improveHtmlAccessibility', () => {
   it('does not overwrite an existing alt', () => {
     const doc = parse(`<img src="photo.png" alt="A photo" />`);
 
-    improveHtmlAccessibility(doc, 'Doc');
+    improveHtmlAccessibility(doc);
 
     expect(doc.querySelector('img')!.getAttribute('alt')).toBe('A photo');
   });
@@ -257,11 +254,11 @@ describe('improveHtmlAccessibility', () => {
   it('wraps body in article with role="document"', () => {
     const doc = parse(`<p>Hello</p>`);
 
-    improveHtmlAccessibility(doc, 'Doc');
+    improveHtmlAccessibility(doc);
 
     const article = doc.querySelector('article');
     expect(article).not.toBeNull();
     expect(article!.getAttribute('role')).toBe('document');
-    expect(article!.getAttribute('aria-labelledby')).toBe('doc-title');
+    expect(article!.hasAttribute('aria-labelledby')).toBe(false);
   });
 });

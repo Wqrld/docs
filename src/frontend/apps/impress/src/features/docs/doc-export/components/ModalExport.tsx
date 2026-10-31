@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   Loader,
   Modal,
   ModalSize,
@@ -15,12 +16,12 @@ import { css } from 'styled-components';
 import { Box, ButtonCloseModal, Text } from '@/components';
 import { useMediaUrl } from '@/core';
 import { useEditorStore } from '@/docs/doc-editor/stores/useEditorStore';
-import { type Doc, useTrans } from '@/docs/doc-management';
+import { type Doc, startsWithTitle, useTrans } from '@/docs/doc-management';
 import { useToast } from '@/hooks';
 import { fallbackLng } from '@/i18n/config';
 
 import ModulesExport from '../hooks/';
-import { downloadFile, getExportFilename } from '../utils';
+import { createTitleBlock, downloadFile, getExportFilename } from '../utils';
 import {
   addMediaFilesToZip,
   generateHtmlDocument,
@@ -46,6 +47,10 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
   const exportXL = useExportXL?.(doc, editor);
   const [format, setFormat] = useState(
     exportXL?.formats.find((opt) => opt.value === 'pdf')?.value || 'html',
+  );
+  // Unchecked when the document already opens with its title.
+  const [includeTitle, setIncludeTitle] = useState(
+    () => !startsWithTitle(editor?.document ?? [], doc.title ?? ''),
   );
 
   useEffect(() => {
@@ -116,11 +121,19 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
       const filename = getExportFilename(documentTitle);
       let downloadExtension = format === 'markdown' ? 'md' : format;
 
-      let blobExport = await exportXL?.docToBlob(format, documentTitle);
+      const exportDocument = includeTitle
+        ? [createTitleBlock(documentTitle), ...editor.document]
+        : editor.document;
+
+      let blobExport = await exportXL?.docToBlob(
+        format,
+        documentTitle,
+        exportDocument,
+      );
 
       if (!blobExport && format === 'markdown') {
         const zip = new JSZip();
-        const blocks = structuredClone(editor.document);
+        const blocks = structuredClone(exportDocument);
 
         const mediaFileCount = await addMediaFilesToMarkdownZip(
           blocks,
@@ -143,7 +156,7 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
 
       if (!blobExport && format === 'html') {
         // Use BlockNote "full HTML" export so that we stay closer to the editor rendering.
-        const fullHtml = await editor.blocksToFullHTML();
+        const fullHtml = await editor.blocksToFullHTML(exportDocument);
 
         // Parse HTML and fetch media so that we can package a fully offline HTML document in a ZIP.
         const domParser = new DOMParser();
@@ -151,7 +164,7 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
 
         const zip = new JSZip();
 
-        improveHtmlAccessibility(parsedDocument, documentTitle);
+        improveHtmlAccessibility(parsedDocument);
         await addMediaFilesToZip(parsedDocument, zip, mediaUrl);
 
         const lang = i18next.language || fallbackLng;
@@ -316,6 +329,13 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
             onChange={(options) => setFormat(options.target.value as string)}
           />
         </Box>
+        <Checkbox
+          label={t('Include document title', {
+            description: 'Checkbox label in the export dialog',
+          })}
+          checked={includeTitle}
+          onChange={(e) => setIncludeTitle(e.target.checked)}
+        />
 
         {isExporting && (
           <Box
