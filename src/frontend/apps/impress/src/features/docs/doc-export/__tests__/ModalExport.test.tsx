@@ -73,6 +73,78 @@ describe('ModalExport', () => {
     mocks.docToBlob.mockResolvedValue(undefined);
   });
 
+  test('includes the document title by default', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ModalExport doc={{ title: 'Roadmap' } as Doc} onClose={vi.fn()} />,
+      { wrapper: AppWrapper },
+    );
+
+    expect(
+      screen.getByRole('checkbox', { name: 'Include document title' }),
+    ).toBeChecked();
+
+    await user.click(screen.getByTestId('doc-export-download-button'));
+
+    await waitFor(() =>
+      expect(mocks.docToBlob).toHaveBeenCalledWith('pdf', 'Roadmap', [
+        expect.objectContaining({
+          type: 'heading',
+          props: expect.objectContaining({ level: 1 }),
+          content: [{ type: 'text', text: 'Roadmap', styles: {} }],
+        }),
+      ]),
+    );
+  });
+
+  test('exports the document without its title when unchecked', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ModalExport doc={{ title: 'Roadmap' } as Doc} onClose={vi.fn()} />,
+      { wrapper: AppWrapper },
+    );
+
+    await user.click(
+      screen.getByRole('checkbox', { name: 'Include document title' }),
+    );
+    await user.click(screen.getByTestId('doc-export-download-button'));
+
+    await waitFor(() =>
+      expect(mocks.docToBlob).toHaveBeenCalledWith('pdf', 'Roadmap', []),
+    );
+  });
+
+  test('hides the format select and focuses the title checkbox when exporting slides', async () => {
+    const onClose = vi.fn();
+    const onExportSlides = vi.fn().mockResolvedValue(undefined);
+    const user = userEvent.setup();
+
+    render(
+      <ModalExport
+        doc={{ title: 'Roadmap' } as Doc}
+        onClose={onClose}
+        onExportSlides={onExportSlides}
+      />,
+      { wrapper: AppWrapper },
+    );
+
+    expect(
+      screen.queryByRole('combobox', { name: 'Format' }),
+    ).not.toBeInTheDocument();
+    const checkbox = screen.getByRole('checkbox', {
+      name: 'Include document title',
+    });
+    await waitFor(() => expect(checkbox).toHaveFocus());
+
+    await user.click(checkbox);
+    await user.click(screen.getByTestId('doc-export-download-button'));
+
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onExportSlides).toHaveBeenCalledWith(false);
+  });
+
   test('downloads Markdown directly when no media is archived', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();

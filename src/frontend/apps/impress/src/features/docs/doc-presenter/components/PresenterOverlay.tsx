@@ -1,4 +1,5 @@
 import { announce, clearAnnouncer } from '@react-aria/live-announcer';
+import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FocusScope } from 'react-aria';
 import { createPortal } from 'react-dom';
@@ -20,6 +21,14 @@ import { printPresenterSlides } from '../utils_print';
 import { PresenterDocsLogo } from './PresenterDocsLogo';
 import { PresenterFloatingBar } from './PresenterFloatingBar';
 import { PresenterSlide } from './PresenterSlide';
+
+const ModalExport = dynamic(
+  () =>
+    import('@/docs/doc-export/components/ModalExport').then((mod) => ({
+      default: mod.ModalExport,
+    })),
+  { ssr: false },
+);
 
 interface PresenterOverlayProps {
   doc: Doc;
@@ -98,6 +107,7 @@ export const PresenterOverlay = ({
     [contentSlides, title],
   );
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [isModalExportOpen, setIsModalExportOpen] = useState(false);
 
   const total = slides.length;
   const [currentIndex, setCurrentIndex] = useState(() =>
@@ -141,18 +151,25 @@ export const PresenterOverlay = ({
     () => setCurrentIndex(clamp(total - 1)),
     [clamp, total],
   );
-  const exportPdf = useCallback(async () => {
-    if (isExportingPdf) {
-      return;
-    }
+  const exportPdf = useCallback(
+    async (includeTitle: boolean) => {
+      if (isExportingPdf) {
+        return;
+      }
 
-    setIsExportingPdf(true);
-    try {
-      await printPresenterSlides(slides);
-    } finally {
-      setIsExportingPdf(false);
-    }
-  }, [isExportingPdf, slides]);
+      setIsExportingPdf(true);
+      try {
+        await printPresenterSlides(
+          includeTitle
+            ? slides
+            : slides.filter((slide) => slide.kind !== 'title'),
+        );
+      } finally {
+        setIsExportingPdf(false);
+      }
+    },
+    [isExportingPdf, slides],
+  );
 
   const { isFullscreen, enter, exitIfOwned, toggle } = useBrowserFullscreen();
 
@@ -171,7 +188,7 @@ export const PresenterOverlay = ({
     onToggleFullscreen: () => void toggle(),
     onClose,
     isFullscreen,
-    isPopoverOpen: isActionsOpen,
+    isPopoverOpen: isActionsOpen || isModalExportOpen,
   });
 
   const mountedIndices = useMemo(() => {
@@ -210,7 +227,11 @@ export const PresenterOverlay = ({
   }
 
   return createPortal(
-    <FocusScope contain={!isActionsOpen} autoFocus restoreFocus>
+    <FocusScope
+      contain={!isActionsOpen && !isModalExportOpen}
+      autoFocus
+      restoreFocus
+    >
       <Box
         $css={overlayCss}
         role="dialog"
@@ -247,12 +268,20 @@ export const PresenterOverlay = ({
           onPrev={goPrev}
           onNext={goNext}
           onCopyLink={() => copyPresenterLink(currentIndex)}
-          onExportPdf={() => void exportPdf()}
+          onExportPdf={() => setIsModalExportOpen(true)}
           isExportingPdf={isExportingPdf}
           onActionsOpenChange={setIsActionsOpen}
           onToggleFullscreen={() => void toggle()}
           onClose={onClose}
         />
+
+        {isModalExportOpen && (
+          <ModalExport
+            doc={doc}
+            onClose={() => setIsModalExportOpen(false)}
+            onExportSlides={exportPdf}
+          />
+        )}
       </Box>
     </FocusScope>,
     document.body,

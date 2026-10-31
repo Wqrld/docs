@@ -99,6 +99,7 @@ const copyCurrentPresenterSlideLink = async (page: Page, overlay: Locator) => {
 const exportPresenterPdf = async (page: Page, overlay: Locator) => {
   await openPresenterActions(page, overlay);
   await page.getByRole('menuitem', { name: 'Download PDF' }).click();
+  await page.getByTestId('doc-export-download-button').click();
 };
 
 test.beforeEach(async ({ page }) => {

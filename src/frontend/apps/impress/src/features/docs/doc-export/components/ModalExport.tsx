@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   Loader,
   Modal,
   ModalSize,
@@ -20,7 +21,7 @@ import { useToast } from '@/hooks';
 import { fallbackLng } from '@/i18n/config';
 
 import ModulesExport from '../hooks/';
-import { downloadFile, getExportFilename } from '../utils';
+import { createTitleBlock, downloadFile, getExportFilename } from '../utils';
 import {
   addMediaFilesToZip,
   generateHtmlDocument,
@@ -33,27 +34,34 @@ const useExportXL = ModulesExport?.useExportXL;
 interface ModalExportProps {
   onClose: () => void;
   doc: Doc;
+  onExportSlides?: (includeTitle: boolean) => Promise<void>;
 }
 
-export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
+export const ModalExport = ({
+  onClose,
+  doc,
+  onExportSlides,
+}: ModalExportProps) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { editor } = useEditorStore();
   const [isExporting, setIsExporting] = useState(false);
   const { untitledDocument } = useTrans();
   const mediaUrl = useMediaUrl();
-  const selectRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const exportXL = useExportXL?.(doc, editor);
   const [format, setFormat] = useState(
     exportXL?.formats.find((opt) => opt.value === 'pdf')?.value || 'html',
   );
+  const [includeTitle, setIncludeTitle] = useState(true);
+  const isSlides = !!onExportSlides;
 
   useEffect(() => {
     const frameId = requestAnimationFrame(() => {
-      const button = selectRef.current?.querySelector<HTMLButtonElement>(
-        'button, [role="combobox"]',
+      const field = contentRef.current?.querySelector<HTMLElement>(
+        'button, [role="combobox"], input[type="checkbox"]',
       );
-      button?.focus();
+      field?.focus();
     });
     return () => cancelAnimationFrame(frameId);
   }, []);
@@ -98,6 +106,12 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
 
   /** Exports the selected format and always releases the loading state. */
   async function onSubmit() {
+    if (isSlides) {
+      onClose();
+      await onExportSlides(includeTitle);
+      return;
+    }
+
     if (!editor) {
       toast(
         t('The export failed', {
@@ -116,11 +130,19 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
       const filename = getExportFilename(documentTitle);
       let downloadExtension = format === 'markdown' ? 'md' : format;
 
-      let blobExport = await exportXL?.docToBlob(format, documentTitle);
+      const exportDocument = includeTitle
+        ? [createTitleBlock(documentTitle), ...editor.document]
+        : editor.document;
+
+      let blobExport = await exportXL?.docToBlob(
+        format,
+        documentTitle,
+        exportDocument,
+      );
 
       if (!blobExport && format === 'markdown') {
         const zip = new JSZip();
-        const blocks = structuredClone(editor.document);
+        const blocks = structuredClone(exportDocument);
 
         const mediaFileCount = await addMediaFilesToMarkdownZip(
           blocks,
@@ -143,7 +165,7 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
 
       if (!blobExport && format === 'html') {
         // Use BlockNote "full HTML" export so that we stay closer to the editor rendering.
-        const fullHtml = await editor.blocksToFullHTML();
+        const fullHtml = await editor.blocksToFullHTML(exportDocument);
 
         // Parse HTML and fetch media so that we can package a fully offline HTML document in a ZIP.
         const domParser = new DOMParser();
@@ -151,7 +173,7 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
 
         const zip = new JSZip();
 
-        improveHtmlAccessibility(parsedDocument, documentTitle);
+        improveHtmlAccessibility(parsedDocument);
         await addMediaFilesToZip(parsedDocument, zip, mediaUrl);
 
         const lang = i18next.language || fallbackLng;
@@ -247,7 +269,11 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
             aria-label={t('Download {{format}}', {
               description:
                 'Accessible name of the export button; format is PDF, Docx, ODT...',
-              format: formatSelect.formatLabels[format],
+              format: isSlides
+                ? t('PDF', {
+                    description: 'Name of the PDF file format / editor block',
+                  })
+                : formatSelect.formatLabels[format],
             })}
             variant="primary"
             fullWidth
@@ -292,6 +318,7 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
         $margin={{ bottom: 'xl' }}
         $gap="1rem"
         className="--docs--modal-export-content"
+        ref={contentRef}
       >
         <Text
           $variation="secondary"
@@ -299,12 +326,16 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
           as="p"
           id="modal-export-description"
         >
-          {t('Export your document to download in {{format}} format.', {
-            description: 'Explanation in the export dialog',
-            format: formatSelect.allFormatsLabel,
-          })}
+          {isSlides
+            ? t('Export your presentation to download in PDF format.', {
+                description: 'Explanation in the presentation export dialog',
+              })
+            : t('Export your document to download in {{format}} format.', {
+                description: 'Explanation in the export dialog',
+                format: formatSelect.allFormatsLabel,
+              })}
         </Text>
-        <Box ref={selectRef}>
+        {!isSlides && (
           <Select
             clearable={false}
             fullWidth
@@ -315,7 +346,14 @@ export const ModalExport = ({ onClose, doc }: ModalExportProps) => {
             value={format}
             onChange={(options) => setFormat(options.target.value as string)}
           />
-        </Box>
+        )}
+        <Checkbox
+          label={t('Include document title', {
+            description: 'Checkbox label in the export dialog',
+          })}
+          checked={includeTitle}
+          onChange={(e) => setIncludeTitle(e.target.checked)}
+        />
 
         {isExporting && (
           <Box
