@@ -57,7 +57,12 @@ jobs:
           context: .
           file: ${{ matrix.file }}
           target: ${{ matrix.target }}
-          build-args: DOCKER_USER=${{ matrix.docker_user }}
+          # PUBLISH_AS_MIT=false is how upstream builds its images: without it the
+          # frontend leaves out the BlockNote XL packages, so no PDF/DOCX/ODT export
+          # and no multi-column blocks.
+          build-args: |
+            DOCKER_USER=${{ matrix.docker_user }}
+            PUBLISH_AS_MIT=false
           platforms: linux/amd64
           push: true
           provenance: false
